@@ -1,281 +1,85 @@
-
----
-
-# 2. `AGENTS.md`
-
-Celui-ci est **très important**.
-
-C'est le fichier qui sert de règlement général pour les agents IA.
-
-```md
 # AGENTS.md
 
-## Role
+## Project State
 
-You are an AI software development agent working on the
-Multi-Store Management System.
-
-Your responsibility is to implement tasks while preserving:
-
-- business rules;
-- application architecture;
-- offline-first behavior;
-- synchronization compatibility;
-- security;
-- data integrity;
-- testability;
-- maintainability.
-
-Do not make architectural decisions silently.
+Phase 3–4: local POS architecture and implementation. No central API, dashboard, or bidirectional sync yet unless explicitly requested.
+Local: SQLite. Central (future): Laravel.
 
 ---
 
-# 1. General Rules
+## Hard Constraints
 
-Before modifying code:
-
-1. Read `README.md`.
-2. Read the relevant documentation in `docs/`.
-3. Understand the existing implementation.
-4. Identify the files that need to change.
-5. Explain the implementation plan when the task is non-trivial.
-6. Implement only the requested scope.
-7. Run relevant tests.
-8. Report what changed.
-
-Never rewrite unrelated parts of the application.
+- **Offline-first**: every local business operation (sale, payment, stock) must work without Internet. Sync is async and must never block local operations.
+- **Sync contract first**: `docs/sync-contract.md` is the architectural backbone. Any change to a synchronizable entity (products, stock, sales, sale_items, payments, customers, users, stores, devices, sync_queue, sync_logs) must respect this contract.
+- **Globally unique identifiers**: use `Uuid::generate()` (UUID v4) for every entity ID. Do not introduce sequential local IDs for any synchronized entity.
+- **Database changes require migration + sync impact analysis**: schema changes go through `packages/infrastructure/src/Migration/Migrations.php` and must document affected models, relationships, and synchronization impact.
 
 ---
 
-# 2. Scope Control
+## Monorepo Layout
 
-One task should produce one coherent change.
+```
+packages/
+  domain/          — Entities, Value Objects, Business Rules (no framework deps)
+  infrastructure/  — SQLite Connection, Repositories, Migrations (depends on domain)
+  cli/             — POS CLI entry point, Commands (depends on domain + infrastructure)
+  sync/            — Sync Queue, Worker, Strategy (depends on domain + infrastructure)
+tests/
+  Unit/            — Pure domain tests
+  Integration/     — Tests with temp SQLite databases and real migrations
+```
 
-Do not:
-
-- refactor unrelated code;
-- rename unrelated classes;
-- change the architecture without approval;
-- add unnecessary dependencies;
-- introduce features that were not requested;
-- modify synchronization behavior accidentally.
-
-If an improvement is discovered outside the current task:
-
-1. mention it;
-2. do not implement it;
-3. create or suggest a separate task.
+Root `composer.json` is the application manifest. Packages are linked via path repositories.
 
 ---
 
-# 3. Offline-First Rules
+## Commands
 
-The local application must remain functional without Internet access.
+```bash
+composer install           # install root + package deps
+composer test              # run PHPUnit (vendor/bin/phpunit)
+vendor/bin/phpunit         # same, direct
+php scripts/migrate.php [database/caisse.db]   # run migrations (idempotent, wrapped in transaction)
+php scripts/status.php                         # list tables + row counts for default DB
+php packages/cli/bin/pos init                  # initialize a new store DB
+php packages/cli/bin/pos <command>             # run POS commands (see below)
+```
 
-Never make a normal business operation depend on:
+Composer scripts: `composer test`, `composer migrate`, `composer pos`, `composer init-store`
 
-- the central API;
-- an external server;
-- a remote database;
-- network availability.
+**CLI commands**: `init`, `store:create`, `user:create`, `device:create`, `device:list`, `product:create`, `product:list`, `sale:create`, `sale:list`, `stock:list`, `session:open`, `session:close`
 
-A sale must be possible while offline.
-
-Network synchronization is asynchronous and must never block the
-core local business operation.
-
----
-
-# 4. Synchronization Rules
-
-Any modification involving:
-
-- products;
-- stock;
-- sales;
-- sale items;
-- payments;
-- customers;
-- users;
-- stores;
-- devices;
-- synchronization;
-
-MUST be evaluated against:
-
-`docs/sync-contract.md`
-
-and, when relevant:
-
-`docs/sync-strategy.md`
-
-Never change the synchronization format without updating the
-corresponding documentation and tests.
+The `pos` binary auto-detects whether the first argument is a command or a DB path. If it is not a known command, it treats it as `database/caisse.db` and shifts the command to the next argument: `php packages/cli/bin/pos database/moncompte.db <command>`.
 
 ---
 
-# 5. Identifiers
+## Tests
 
-Entities participating in synchronization MUST use identifiers
-compatible with distributed operation.
+```bash
+vendor/bin/phpunit                                # all tests
+vendor/bin/phpunit tests/Unit/SaleTest.php        # single test file
+vendor/bin/phpunit --filter testCompletesSale     # single test method
+```
 
-Do not introduce assumptions based on sequential local IDs when the
-entity is synchronized.
-
-Before changing an identifier:
-
-1. inspect the synchronization contract;
-2. inspect existing relationships;
-3. inspect tests;
-4. evaluate migration impact.
+Integration tests (`tests/Integration`) create a temp SQLite file in `sys_get_temp_dir()`, run the real migrations in `setUp()`, and delete it in `tearDown()`.
 
 ---
 
-# 6. Data Integrity
+## Architecture Notes
 
-Business-critical operations must be atomic whenever appropriate.
-
-Examples:
-
-Creating a sale may involve:
-
-- creating the sale;
-- creating sale items;
-- registering payment;
-- updating stock;
-- creating synchronization records.
-
-These operations must not leave the local database in an inconsistent
-state.
+- **Database Connection**: `Caisse\Infrastructure\Database\Connection::getInstance($path)` is a singleton with `PRAGMA foreign_keys = ON` and `PRAGMA journal_mode = WAL`. Tests must instantiate with their own temp path to avoid cross-test contamination.
+- **Migrations**: flat array of SQL strings in `Migrations.php`, tracked by a `migrations` table using full SQL hash. No versioned migration files.
+- **Entity reconstitution**: when hydrating entities from the database, use `Entity::reconstitute(...)` (reflection-based) to bypass constructor immutability and restore `id`, `createdAt`, `updatedAt`.
+- **Business invariants** (from `docs/domain.md`):
+  - Sale item prices are immutable — changing a product price must not affect historical sales.
+  - A sale can only be completed if total payments ≥ total amount.
+  - Sales, payments, and stock updates must be atomic and traceable.
 
 ---
 
-# 7. Idempotency
+## Key Docs (read before non-trivial changes)
 
-Synchronization operations must be safe to retry.
-
-The same synchronization event must not create duplicate business
-operations.
-
-Never implement a synchronization endpoint that assumes the network
-will deliver a request exactly once.
-
----
-
-# 8. Error Handling
-
-Failures must be explicit.
-
-Do not silently ignore:
-
-- database errors;
-- synchronization errors;
-- validation errors;
-- authorization errors;
-- network failures.
-
-Errors that affect synchronization must be logged according to the
-synchronization strategy.
-
----
-
-# 9. Testing
-
-Every new business feature must include appropriate tests.
-
-For synchronization-related features, test at least:
-
-- success;
-- retry;
-- duplicate request;
-- network failure;
-- invalid payload;
-- partial failure;
-- already synchronized event.
-
----
-
-# 10. Security
-
-Never trust:
-
-- user input;
-- local identifiers;
-- synchronization payloads;
-- client-provided permissions;
-- remote data.
-
-Authentication and authorization must be enforced independently.
-
-Never expose:
-
-- passwords;
-- secrets;
-- API tokens;
-- private credentials;
-
-in source code or logs.
-
----
-
-# 11. Database
-
-Do not manually modify the database schema outside the project's
-migration mechanism.
-
-Any schema modification must include:
-
-- migration;
-- affected models;
-- affected relationships;
-- tests when relevant;
-- synchronization impact analysis when relevant.
-
----
-
-# 12. Git
-
-Prefer small, focused commits.
-
-Recommended format:
-
-`feat: add local sales management`
-
-`fix: prevent duplicate synchronization events`
-
-`test: add offline sales tests`
-
-`refactor: extract sync queue service`
-
-Do not mix unrelated changes in the same commit.
-
----
-
-# 13. When Requirements Are Ambiguous
-
-Do not guess when an ambiguity could affect:
-
-- money;
-- stock;
-- synchronization;
-- security;
-- permissions;
-- data integrity.
-
-Instead:
-
-1. identify the ambiguity;
-2. explain its impact;
-3. propose options;
-4. wait for a decision when necessary.
-
----
-
-# 14. Documentation
-
-When implementation changes an architectural rule, update the relevant
-documentation.
-
-Documentation is part of the system.
-
-Do not allow code and architecture documentation to diverge silently.
+- `docs/sync-contract.md` — what is exchanged
+- `docs/sync-strategy.md` — how it is synchronized
+- `docs/domain.md` — business entities and invariants
+- `docs/database.md` — entity list and local schema direction

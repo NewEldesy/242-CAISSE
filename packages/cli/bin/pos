@@ -1,0 +1,40 @@
+<?php
+
+declare(strict_types=1);
+
+$autoloadPaths = [
+    dirname(__DIR__, 3) . '/vendor/autoload.php',
+    dirname(__DIR__, 2) . '/../../vendor/autoload.php',
+    __DIR__ . '/../../../../vendor/autoload.php',
+];
+
+foreach ($autoloadPaths as $autoloadPath) {
+    if (file_exists($autoloadPath)) {
+        require $autoloadPath;
+        break;
+    }
+}
+
+if (!class_exists(\Caisse\Cli\Application::class)) {
+    fwrite(STDERR, "Error: vendor/autoload.php not found. Run 'composer install' first.\n");
+    exit(1);
+}
+
+use Caisse\Cli\Application;
+use Caisse\Infrastructure\Database\Connection;
+
+$knownCommands = ['init', 'store:create', 'user:create', 'device:create', 'device:list', 'product:create', 'product:list', 'sale:create', 'sale:list', 'stock:list', 'session:open', 'session:close'];
+
+$commandName = $argv[1] ?? 'help';
+$databasePath = 'database/caisse.db';
+
+if ($commandName !== 'help' && !in_array($commandName, $knownCommands, true)) {
+    $databasePath = $commandName;
+    $commandName = $argv[2] ?? 'help';
+    $argv = [$argv[0], $commandName, ...array_slice($argv, 3)];
+}
+
+$connection = Connection::getInstance($databasePath);
+
+$app = new Application('Caisse POS', '1.0.0', $connection, $databasePath);
+$app->run($argv);

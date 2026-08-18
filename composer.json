@@ -1,0 +1,44 @@
+{
+    "name": "caisse/multi-store-pos",
+    "description": "Système de gestion multi-boutiques offline-first avec synchronisation future",
+    "type": "project",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "php": "^8.0",
+        "ext-sqlite3": "*",
+        "caisse/domain": "*",
+        "caisse/infrastructure": "*",
+        "caisse/cli": "*",
+        "caisse/sync": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Caisse\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Caisse\\Tests\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "./packages/*"
+        }
+    ],
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "migrate": "php scripts/migrate.php",
+        "pos": "php packages/cli/bin/pos",
+        "init-store": "php packages/cli/bin/pos init"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    }
+}

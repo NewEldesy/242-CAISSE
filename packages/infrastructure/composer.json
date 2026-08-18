@@ -1,0 +1,15 @@
+{
+    "name": "caisse/infrastructure",
+    "description": "Infrastructure layer - Database, Repositories, Migrations",
+    "type": "library",
+    "require": {
+        "php": "^8.0",
+        "ext-sqlite3": "*",
+        "caisse/domain": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Caisse\\Infrastructure\\": "src/"
+        }
+    }
+}

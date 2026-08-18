@@ -28,3 +28,10 @@ Homestead.json
 .env.production
 .phpactor.json
 auth.json
+
+# Documentation locale (ne pas pusher sur GitHub)
+*.md
+*.txt
+*.rst
+*.adoc
+docs/
