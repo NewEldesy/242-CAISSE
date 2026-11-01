@@ -127,4 +127,4 @@ Copier `.env.example` en `.env` et renseigner les valeurs selon l'environnement 
 
 ## Auteur
 
-**Ramel Offrey Eldesy MAKOSSO** — [GitHub](https://github.com/NewEldesy)
+[Ramel Offrey Eldesy MAKOSSO](https://github.com/NewEldesy)
