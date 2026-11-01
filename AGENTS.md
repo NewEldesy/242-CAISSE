@@ -20,13 +20,13 @@ Local: SQLite. Central (future): Laravel.
 
 ```
 packages/
-  domain/          — Entities, Value Objects, Business Rules (no framework deps)
-  infrastructure/  — SQLite Connection, Repositories, Migrations (depends on domain)
-  cli/             — POS CLI entry point, Commands (depends on domain + infrastructure)
-  sync/            — Sync Queue, Worker, Strategy (depends on domain + infrastructure)
+  domain/          - Entities, Value Objects, Business Rules (no framework deps)
+  infrastructure/  - SQLite Connection, Repositories, Migrations (depends on domain)
+  cli/             - POS CLI entry point, Commands (depends on domain + infrastructure)
+  sync/            - Sync Queue, Worker, Strategy (depends on domain + infrastructure)
 tests/
-  Unit/            — Pure domain tests
-  Integration/     — Tests with temp SQLite databases and real migrations
+  Unit/            - Pure domain tests
+  Integration/     - Tests with temp SQLite databases and real migrations
 ```
 
 Root `composer.json` is the application manifest. Packages are linked via path repositories.

@@ -12,6 +12,7 @@ use Caisse\Domain\ValueObject\Money;
 use Caisse\Infrastructure\Repository\SqliteSaleRepository;
 use Caisse\Infrastructure\Repository\SqliteSaleItemRepository;
 use Caisse\Infrastructure\Repository\SqlitePaymentRepository;
+use Caisse\Infrastructure\Repository\SqliteProductRepository;
 use Caisse\Infrastructure\Repository\SqliteStoreRepository;
 use Caisse\Infrastructure\Repository\SqliteUserRepository;
 
@@ -55,33 +56,43 @@ class SaleCreateCommand extends Command
         );
         
         $saleRepo = new SqliteSaleRepository($this->connection);
-        $saleRepo->save($sale);
-        
         $saleItemRepo = new SqliteSaleItemRepository($this->connection);
-        
-        foreach ($itemArgs as $itemArg) {
-            [$productId, $quantity] = explode(':', $itemArg);
-            
-            $product = (new SqliteProductRepository($this->connection))->findById(\Caisse\Domain\ValueObject\Uuid::fromString($productId));
-            if (!$product) {
-                echo "Product not found: {$productId}\n";
-                return 1;
+        $productRepo = new SqliteProductRepository($this->connection);
+
+        $this->connection->beginTransaction();
+        try {
+            $saleRepo->save($sale);
+
+            foreach ($itemArgs as $itemArg) {
+                [$productId, $quantity] = explode(':', $itemArg);
+
+                $product = $productRepo->findById(\Caisse\Domain\ValueObject\Uuid::fromString($productId));
+                if (!$product) {
+                    $this->connection->rollback();
+                    echo "Product not found: {$productId}\n";
+                    return 1;
+                }
+
+                $saleItem = SaleItem::create(
+                    $product->getId(),
+                    $product->getName(),
+                    (int)$quantity,
+                    $product->getSellingPrice()
+                );
+                $saleItem->setSaleId($sale->getId());
+                $saleItemRepo->save($saleItem);
+
+                $sale->addItem($saleItem);
             }
-            
-            $saleItem = SaleItem::create(
-                $product->getId(),
-                $product->getName(),
-                (int)$quantity,
-                $product->getSellingPrice()
-            );
-            $saleItem->setSaleId($sale->getId());
-            $saleItemRepo->save($saleItem);
-            
-            $sale->addItem($saleItem);
+
+            $saleRepo->save($sale);
+            $this->connection->commit();
+        } catch (\Throwable $e) {
+            $this->connection->rollback();
+            echo "Error creating sale: {$e->getMessage()}\n";
+            return 1;
         }
-        
-        $saleRepo->save($sale);
-        
+
         echo "Sale created: {$sale->getId()} - Total: " . number_format($sale->getTotalAmount()->getAmount()) . "\n";
         return 0;
     }

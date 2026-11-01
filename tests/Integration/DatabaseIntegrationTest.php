@@ -17,15 +17,17 @@ class DatabaseIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        Connection::resetInstance();
         $this->dbPath = sys_get_temp_dir() . '/caisse_test_' . uniqid() . '.db';
         $this->connection = Connection::getInstance($this->dbPath);
         
         $runner = new MigrationRunner($this->connection);
-        $runner->runMigrations(require __DIR__ . '/../../../infrastructure/src/Migration/Migrations.php');
+        $runner->runMigrations(require __DIR__ . '/../../packages/infrastructure/src/Migration/Migrations.php');
     }
 
     protected function tearDown(): void
     {
+        Connection::resetInstance();
         if (file_exists($this->dbPath)) {
             unlink($this->dbPath);
         }

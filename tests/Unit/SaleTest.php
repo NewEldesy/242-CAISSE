@@ -9,6 +9,7 @@ use Caisse\Domain\Entity\SaleItem;
 use Caisse\Domain\Entity\SaleStatus;
 use Caisse\Domain\Entity\Payment;
 use Caisse\Domain\Entity\PaymentMethod;
+use Caisse\Domain\Exception\DomainException;
 use Caisse\Domain\ValueObject\Money;
 use PHPUnit\Framework\TestCase;
 
@@ -72,7 +73,7 @@ class SaleTest extends TestCase
 
     public function testRejectsCompletionWithInsufficientPayment(): void
     {
-        $this->expectException(\DomainException::class);
+        $this->expectException(DomainException::class);
         
         $sale = Sale::create(
             \Caisse\Domain\ValueObject\Uuid::generate(),

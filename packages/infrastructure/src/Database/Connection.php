@@ -10,7 +10,7 @@ use PDOException;
 class Connection
 {
     private static ?Connection $instance = null;
-    private PDO $pdo;
+    private ?PDO $pdo;
 
     private function __construct(string $databasePath)
     {
@@ -79,5 +79,14 @@ class Connection
     public function rollback(): void
     {
         $this->pdo->rollBack();
+    }
+
+    /** @internal Reserved for tests  closes the PDO connection and resets the singleton. */
+    public static function resetInstance(): void
+    {
+        if (self::$instance !== null) {
+            self::$instance->pdo = null;
+        }
+        self::$instance = null;
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Caisse\Domain\Entity;
 
+use Caisse\Domain\Exception\DomainException;
 use Caisse\Domain\ValueObject\Uuid;
 use Caisse\Domain\ValueObject\Money;
 
@@ -39,25 +40,10 @@ final class Sale extends Entity
         \DateTimeImmutable $updatedAt,
         ?Uuid $cashSessionId = null
     ): self {
-        $sale = new self(Uuid::generate(), $storeId, $deviceId, $userId, $customerId, $status, $totalAmount);
-        // Use reflection to set private id and timestamps
-        $ref = new \ReflectionClass($sale);
-        $refProp = $ref->getProperty('id');
-        $refProp->setAccessible(true);
-        $refProp->setValue($sale, $id);
-        $refProp = $ref->getProperty('createdAt');
-        $refProp->setAccessible(true);
-        $refProp->setValue($sale, $createdAt);
-        $refProp = $ref->getProperty('updatedAt');
-        $refProp->setAccessible(true);
-        $refProp->setValue($sale, $updatedAt);
-        
-        if ($cashSessionId !== null) {
-            $refProp = $ref->getProperty('cashSessionId');
-            $refProp->setAccessible(true);
-            $refProp->setValue($sale, $cashSessionId);
-        }
-        
+        $sale = new self($id, $storeId, $deviceId, $userId, $customerId, $status, $totalAmount);
+        $sale->createdAt = $createdAt;
+        $sale->updatedAt = $updatedAt;
+        $sale->cashSessionId = $cashSessionId;
         return $sale;
     }
 
@@ -133,7 +119,7 @@ final class Sale extends Entity
     public function complete(): void
     {
         if ($this->status !== SaleStatus::PENDING) {
-            throw new \DomainException("Cannot complete sale in status: {$this->status->value}");
+            throw new DomainException("Cannot complete sale in status: {$this->status->value}");
         }
 
         $totalPaid = Money::of(0);
@@ -142,7 +128,7 @@ final class Sale extends Entity
         }
 
         if (!$totalPaid->isGreaterThanOrEqual($this->totalAmount)) {
-            throw new \DomainException("Insufficient payment for sale completion");
+            throw new DomainException("Insufficient payment for sale completion");
         }
 
         $this->status = SaleStatus::COMPLETED;
@@ -152,7 +138,7 @@ final class Sale extends Entity
     public function cancel(): void
     {
         if ($this->status === SaleStatus::COMPLETED) {
-            throw new \DomainException("Cannot cancel a completed sale");
+            throw new DomainException("Cannot cancel a completed sale");
         }
 
         $this->status = SaleStatus::CANCELLED;
