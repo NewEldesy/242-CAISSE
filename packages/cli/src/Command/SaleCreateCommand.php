@@ -29,8 +29,13 @@ class SaleCreateCommand extends Command
         $storeCode = $args[0];
         $deviceId = $args[1];
         $userId = $args[2];
-        $customerId = $args[3] ?? null;
-        $itemArgs = array_slice($args, 4);
+
+        // arg[3] is optional customer_id (UUID). If it looks like a product item (contains ':')
+        // or is empty/absent, treat it as the start of the item list instead.
+        $arg3 = $args[3] ?? null;
+        $isCustomer = $arg3 && !str_contains($arg3, ':') && strlen($arg3) === 36;
+        $customerId = $isCustomer ? $arg3 : null;
+        $itemArgs = array_slice($args, $isCustomer ? 4 : 3);
         
         $storeRepo = new SqliteStoreRepository($this->connection);
         $store = $storeRepo->findByCode($storeCode);
